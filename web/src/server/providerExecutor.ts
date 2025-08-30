@@ -7,7 +7,12 @@ export function executeModule<T = any>(moduleCode: string, ...args: any[]): T {
     exports: {} as any,
     module: {exports: {} as any},
     require: () => ({}),
-    console,
+    console: {
+      ...console,
+      log: (...args: any[]) => console.log(`[PROVIDER-MODULE]`, ...args),
+      error: (...args: any[]) => console.error(`[PROVIDER-MODULE]`, ...args),
+      warn: (...args: any[]) => console.warn(`[PROVIDER-MODULE]`, ...args),
+    },
     Promise,
     __awaiter: (thisArg: any, _arguments: any, P: any, generator: any) => {
       function adopt(value: any) {

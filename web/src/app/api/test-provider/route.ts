@@ -53,6 +53,34 @@ export async function GET(req: NextRequest) {
         // Actually test the getStream function
         try {
           console.log(`[TEST-PROVIDER] Testing getStream function with real parameters...`);
+          
+          // First, let's test if we can fetch the URL directly
+          try {
+            console.log(`[TEST-PROVIDER] Testing direct URL fetch: ${testLink}`);
+            const testResponse = await fetch(testLink, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+              }
+            });
+            
+            console.log(`[TEST-PROVIDER] Direct fetch status:`, testResponse.status);
+            console.log(`[TEST-PROVIDER] Direct fetch headers:`, Object.fromEntries(testResponse.headers.entries()));
+            
+            if (testResponse.ok) {
+              const testContent = await testResponse.text();
+              console.log(`[TEST-PROVIDER] Direct fetch content length:`, testContent.length);
+              console.log(`[TEST-PROVIDER] Direct fetch content preview:`, testContent.substring(0, 500));
+            }
+          } catch (fetchError: any) {
+            console.error(`[TEST-PROVIDER] Direct fetch failed:`, fetchError.message);
+          }
+          
+          // Now test the actual getStream function
           getStreamResult = await getStream({
             link: testLink,
             type: testType,

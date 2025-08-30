@@ -29,6 +29,13 @@ export async function GET(req: NextRequest) {
       clearProviderCache(providerValue);
     }
     
+    // Also check if we should force refresh based on timestamp
+    const cacheAge = searchParams.get('cache_age');
+    if (cacheAge && parseInt(cacheAge) > 300000) { // 5 minutes
+      console.log(`[STREAM-API] Cache age threshold exceeded, forcing refresh`);
+      clearProviderCache(providerValue);
+    }
+    
     const modules = await fetchProviderModules(providerValue);
     console.log(`[STREAM-API] Modules fetched:`, Object.keys(modules));
     
@@ -58,11 +65,20 @@ export async function GET(req: NextRequest) {
     
     console.log(`[STREAM-API] getStream function found, calling with:`, { link, type });
     
+    // Log provider context for debugging
+    console.log(`[STREAM-API] Provider context keys:`, Object.keys(providerContext));
+    console.log(`[STREAM-API] Provider context axios:`, typeof providerContext.axios);
+    console.log(`[STREAM-API] Provider context cheerio:`, typeof providerContext.cheerio);
+    console.log(`[STREAM-API] Provider context extractors:`, Object.keys(providerContext.extractors));
+    console.log(`[STREAM-API] Provider context headers:`, Object.keys(providerContext.commonHeaders));
+    
     // Call getStream function with detailed logging
     const controller = new AbortController();
     
     try {
       console.log(`[STREAM-API] About to call getStream function...`);
+      console.log(`[STREAM-API] Arguments being passed:`, { link, type, signal: controller.signal, providerContext: Object.keys(providerContext) });
+      
       const data = await getStream({
         link,
         type,
@@ -77,6 +93,7 @@ export async function GET(req: NextRequest) {
       
       if (Array.isArray(data) && data.length === 0) {
         console.warn(`[STREAM-API] getStream returned empty array - this might indicate extraction failure`);
+        console.warn(`[STREAM-API] This could be due to: URL parsing failure, HTTP request failure, content parsing failure, or extraction logic failure`);
       }
       
       console.log(`[STREAM-API] Returning data:`, { data: data || [] });
