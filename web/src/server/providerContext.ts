@@ -18,9 +18,7 @@ export const providerContext = {
     // For now, omit specialized extractors; providers using them should be updated later
     // You can implement Node versions and wire them here.
     hubcloudExtracter,
-    gofileExtracter: async () => ({link: '', token: ''}),
-    // replace with node implementation
-    gofileExtracter,
+    gofileExtracter: async () => ({link: '', token: ''}), // Node-compatible stub
     superVideoExtractor,
     gdFlixExtracter,
   },
