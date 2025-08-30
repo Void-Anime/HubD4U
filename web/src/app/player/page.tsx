@@ -1,9 +1,9 @@
 "use client";
-import {useEffect, useMemo, useRef, useState} from 'react';
+import {useEffect, useMemo, useRef, useState, Suspense} from 'react';
 import {useSearchParams} from 'next/navigation';
 import Hls from 'hls.js';
 
-export default function PlayerPage() {
+function PlayerPageContent() {
   const searchParams = useSearchParams();
   const link = searchParams.get('link') || '';
   const providerParam = searchParams.get('provider') || '';
@@ -400,6 +400,14 @@ export default function PlayerPage() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function PlayerPage() {
+  return (
+    <Suspense fallback={<div>Loading player...</div>}>
+      <PlayerPageContent />
+    </Suspense>
   );
 }
 
