@@ -4,9 +4,7 @@ import type {NextConfig} from 'next';
 const nextConfig: NextConfig = {
   // Ensure output file tracing resolves from the web app directory in this workspace
   outputFileTracingRoot: path.join(__dirname, '..'),
-  experimental: {
-    serverComponentsExternalPackages: ['ffmpeg-static'],
-  },
+  serverExternalPackages: ['ffmpeg-static'],
   webpack: (config) => {
     // Keep ffmpeg-static as external to preserve runtime path
     config.externals = config.externals || [];
