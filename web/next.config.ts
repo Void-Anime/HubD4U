@@ -11,16 +11,14 @@ const nextConfig: NextConfig = {
     // Keep ffmpeg-static as external to preserve runtime path
     config.externals = config.externals || [];
     config.externals.push({ 'ffmpeg-static': 'commonjs ffmpeg-static' });
+    
+    // Handle FFmpeg warnings
+    config.ignoreWarnings = [
+      /Critical dependency: the request of a dependency is an expression/,
+    ];
+    
     return config;
   },
-};
-
-export default nextConfig;
-
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
-  /* config options here */
 };
 
 export default nextConfig;
