@@ -272,8 +272,39 @@ function PlayerPageContent() {
       video.src = playableUrl;
       attemptAutoplay();
     } else {
-      const playableUrl = `/api/transcode?url=${encodeURIComponent(raw)}${ref ? `&referer=${encodeURIComponent(ref)}` : ''}`;
-      video.src = playableUrl;
+      // Try transcoding first, fallback to direct streaming if it fails
+      const transcodeUrl = `/api/transcode?url=${encodeURIComponent(raw)}${ref ? `&referer=${encodeURIComponent(ref)}` : ''}`;
+      const fallbackUrl = `/api/stream-fallback?url=${encodeURIComponent(raw)}${ref ? `&referer=${encodeURIComponent(ref)}` : ''}`;
+      
+      // Set up error handling for transcoding
+      const handleTranscodeError = () => {
+        console.log('[PLAYER] Transcoding failed, trying fallback streaming');
+        video.src = fallbackUrl;
+        attemptAutoplay();
+      };
+      
+      // Set up error handling for fallback
+      const handleFallbackError = () => {
+        console.log('[PLAYER] Fallback streaming also failed');
+        setError('Stream not available. The video format may not be supported.');
+      };
+      
+      // Try transcoding first
+      video.src = transcodeUrl;
+      video.onerror = handleTranscodeError;
+      video.onloadstart = () => {
+        console.log('[PLAYER] Transcoding started');
+        video.onerror = null; // Clear error handler once it starts
+      };
+      
+      // Fallback timeout
+      setTimeout(() => {
+        if (video.readyState === 0) { // HAVE_NOTHING
+          console.log('[PLAYER] Transcoding timeout, trying fallback');
+          handleTranscodeError();
+        }
+      }, 5000); // 5 second timeout
+      
       attemptAutoplay();
     }
   }, [streams, currentIndex]);

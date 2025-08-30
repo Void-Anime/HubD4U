@@ -1,6 +1,5 @@
 import {NextRequest} from 'next/server';
 import {spawn} from 'child_process';
-import path from 'path';
 
 // FFmpeg path resolution with fallbacks
 function getFFmpegPath(): string | null {
@@ -42,7 +41,8 @@ export async function GET(req: NextRequest) {
     return new Response('FFmpeg not available', {status: 500});
   }
 
-  console.log(`Using FFmpeg at: ${ffmpegPath}`);
+  console.log(`[TRANSCODE] Using FFmpeg at: ${ffmpegPath}`);
+  console.log(`[TRANSCODE] Processing URL: ${url}`);
 
   // Build headers for ffmpeg input
   const headerLines: string[] = [
@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
 
   const headersArg = headerLines.join('\r\n');
 
-  // FFmpeg arguments for optimal streaming
+  // FFmpeg arguments optimized for Vercel/serverless
   const args = [
     '-hide_banner',
     '-loglevel', 'error',
@@ -68,43 +68,46 @@ export async function GET(req: NextRequest) {
     '-i', url,
     // Video codec settings for browser compatibility
     '-c:v', 'libx264',
-    '-preset', 'veryfast',
-    '-crf', '23',
+    '-preset', 'ultrafast', // Use ultrafast for Vercel's limited CPU
+    '-crf', '28', // Higher CRF for faster encoding
     '-pix_fmt', 'yuv420p',
     '-profile:v', 'baseline',
     '-level', '3.1',
     // Audio codec settings
     '-c:a', 'aac',
-    '-b:a', '128k',
+    '-b:a', '96k', // Lower bitrate for faster encoding
     '-ar', '44100',
-    // Output format settings
+    // Output format settings optimized for streaming
     '-movflags', 'frag_keyframe+empty_moov+faststart',
     '-f', 'mp4',
     '-y', // Overwrite output files
     'pipe:1'
   ];
 
-  console.log(`FFmpeg args: ${args.join(' ')}`);
+  console.log(`[TRANSCODE] FFmpeg args: ${args.join(' ')}`);
 
   let child: any = null;
   let controllerClosed = false;
+  let streamStarted = false;
 
   try {
     child = spawn(ffmpegPath, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true
+      windowsHide: true,
+      // Add timeout for Vercel
+      timeout: 30000 // 30 seconds timeout
     });
 
     // Handle FFmpeg process errors
     child.on('error', (err: any) => {
-      console.error('FFmpeg spawn error:', err);
+      console.error('[TRANSCODE] FFmpeg spawn error:', err);
       if (!controllerClosed) {
         controllerClosed = true;
       }
     });
 
     child.on('exit', (code: number, signal: string) => {
-      console.log(`FFmpeg process exited with code ${code}, signal ${signal}`);
+      console.log(`[TRANSCODE] FFmpeg process exited with code ${code}, signal ${signal}`);
       if (!controllerClosed) {
         controllerClosed = true;
       }
@@ -112,7 +115,7 @@ export async function GET(req: NextRequest) {
 
     // Handle stderr for debugging
     child.stderr.on('data', (data: Buffer) => {
-      console.log('FFmpeg stderr:', data.toString());
+      console.log('[TRANSCODE] FFmpeg stderr:', data.toString());
     });
 
     const headers = new Headers({
@@ -121,16 +124,26 @@ export async function GET(req: NextRequest) {
       'Accept-Ranges': 'bytes',
       'Cache-Control': 'no-store',
       'Connection': 'keep-alive',
+      // Add Vercel-specific headers
+      'X-Accel-Buffering': 'no',
+      'Transfer-Encoding': 'chunked'
     });
 
     const body = new ReadableStream<Uint8Array>({
       start(controller) {
+        console.log('[TRANSCODE] Stream started');
+        
         child.stdout.on('data', (chunk: Buffer) => {
+          if (!controllerClosed && !streamStarted) {
+            streamStarted = true;
+            console.log('[TRANSCODE] First chunk received, size:', chunk.length);
+          }
+          
           if (!controllerClosed) {
             try {
               controller.enqueue(chunk);
             } catch (e) {
-              console.error('Controller enqueue error:', e);
+              console.error('[TRANSCODE] Controller enqueue error:', e);
               if (!controllerClosed) {
                 controllerClosed = true;
                 controller.close();
@@ -140,6 +153,7 @@ export async function GET(req: NextRequest) {
         });
 
         child.stdout.on('end', () => {
+          console.log('[TRANSCODE] Stream ended');
           if (!controllerClosed) {
             controllerClosed = true;
             controller.close();
@@ -147,7 +161,7 @@ export async function GET(req: NextRequest) {
         });
 
         child.stdout.on('error', (err: any) => {
-          console.error('FFmpeg stdout error:', err);
+          console.error('[TRANSCODE] FFmpeg stdout error:', err);
           if (!controllerClosed) {
             controllerClosed = true;
             controller.close();
@@ -155,20 +169,30 @@ export async function GET(req: NextRequest) {
         });
 
         child.on('close', () => {
+          console.log('[TRANSCODE] Child process closed');
           if (!controllerClosed) {
             controllerClosed = true;
             controller.close();
           }
         });
+
+        // Add timeout for Vercel
+        setTimeout(() => {
+          if (!streamStarted && !controllerClosed) {
+            console.log('[TRANSCODE] Timeout reached, no data received');
+            controllerClosed = true;
+            controller.close();
+          }
+        }, 10000); // 10 second timeout for first chunk
       },
 
       cancel() {
-        console.log('Stream cancelled, killing FFmpeg process');
+        console.log('[TRANSCODE] Stream cancelled, killing FFmpeg process');
         if (child && !child.killed) {
           try {
             child.kill('SIGKILL');
           } catch (e) {
-            console.error('Error killing FFmpeg process:', e);
+            console.error('[TRANSCODE] Error killing FFmpeg process:', e);
           }
         }
         if (!controllerClosed) {
@@ -180,7 +204,7 @@ export async function GET(req: NextRequest) {
     return new Response(body, {status: 200, headers});
 
   } catch (error) {
-    console.error('Error creating FFmpeg process:', error);
+    console.error('[TRANSCODE] Error creating FFmpeg process:', error);
     
     // Clean up if child was created
     if (child && !child.killed) {

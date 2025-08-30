@@ -11,6 +11,17 @@ const nextConfig: NextConfig = {
     'child_process'
   ],
   
+  // Vercel-specific optimizations
+  experimental: {
+    // Enable streaming responses
+    serverActions: {
+      bodySizeLimit: '10mb'
+    }
+  },
+  
+  // Optimize for Vercel
+  poweredByHeader: false,
+  
   webpack: (config, { isServer }) => {
     if (isServer) {
       // Keep FFmpeg package as external to preserve runtime path
@@ -28,6 +39,38 @@ const nextConfig: NextConfig = {
     ];
     
     return config;
+  },
+  
+  // Vercel-specific headers
+  async headers() {
+    return [
+      {
+        source: '/api/transcode/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-store, no-cache, must-revalidate, proxy-revalidate'
+          },
+          {
+            key: 'X-Accel-Buffering',
+            value: 'no'
+          }
+        ]
+      },
+      {
+        source: '/api/stream-fallback/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-store, no-cache, must-revalidate, proxy-revalidate'
+          },
+          {
+            key: 'X-Accel-Buffering',
+            value: 'no'
+          }
+        ]
+      }
+    ];
   }
 };
 
