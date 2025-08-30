@@ -1,8 +1,8 @@
 "use client";
-import {useEffect, useMemo, useRef, useState} from 'react';
+import {useEffect, useMemo, useRef, useState, Suspense} from 'react';
 import {useSearchParams} from 'next/navigation';
 
-export default function ScrollPage() {
+function ScrollPageContent() {
   const sp = useSearchParams();
   const provider = sp.get('provider') || 'vega';
   const title = sp.get('title') || 'Browse';
@@ -100,6 +100,14 @@ export default function ScrollPage() {
         </div>
       </main>
     </main>
+  );
+}
+
+export default function ScrollPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ScrollPageContent />
+    </Suspense>
   );
 }
 
