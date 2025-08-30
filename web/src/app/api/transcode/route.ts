@@ -1,19 +1,28 @@
 import {NextRequest} from 'next/server';
 import {spawn} from 'child_process';
-// Resolve ffmpeg path at runtime to avoid bundling issues
-// Resolve ffmpeg path strictly from @ffmpeg-installer/ffmpeg or env to avoid bundling stub paths
-let ffmpegPath: string | null = null;
-try {
-  // Highest priority: explicit env override
-  if (process.env.FFMPEG_PATH) {
-    ffmpegPath = process.env.FFMPEG_PATH;
-  } else {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const ff = require('@ffmpeg-installer/ffmpeg');
-    ffmpegPath = ff?.path || null;
+import path from 'path';
+
+// FFmpeg path resolution with fallbacks
+function getFFmpegPath(): string | null {
+  try {
+    // First try: explicit environment variable
+    if (process.env.FFMPEG_PATH) {
+      return process.env.FFMPEG_PATH;
+    }
+
+    // Second try: @ffmpeg-installer/ffmpeg
+    try {
+      const ff = require('@ffmpeg-installer/ffmpeg');
+      if (ff?.path && typeof ff.path === 'string') {
+        return ff.path;
+      }
+    } catch {}
+
+    // Third try: system ffmpeg (if available)
+    return 'ffmpeg';
+  } catch {
+    return null;
   }
-} catch {
-  ffmpegPath = null;
 }
 
 export const dynamic = 'force-dynamic';
@@ -22,77 +31,166 @@ export async function GET(req: NextRequest) {
   const {searchParams} = new URL(req.url);
   const url = searchParams.get('url');
   const referer = searchParams.get('referer') || undefined;
+  
   if (!url || !/^https?:\/\//i.test(url)) {
-    return new Response('Bad Request', {status: 400});
+    return new Response('Bad Request: Invalid URL', {status: 400});
   }
 
+  const ffmpegPath = getFFmpegPath();
   if (!ffmpegPath) {
-    return new Response('ffmpeg not available', {status: 500});
+    console.error('FFmpeg not available - no path found');
+    return new Response('FFmpeg not available', {status: 500});
   }
+
+  console.log(`Using FFmpeg at: ${ffmpegPath}`);
 
   // Build headers for ffmpeg input
   const headerLines: string[] = [
-    'User-Agent: Mozilla/5.0',
+    'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
     'Accept: */*',
+    'Accept-Language: en-US,en;q=0.9',
+    'Accept-Encoding: gzip, deflate, br',
+    'Connection: keep-alive',
+    'Upgrade-Insecure-Requests: 1',
   ];
-  if (referer) headerLines.push(`Referer: ${referer}`);
+  
+  if (referer) {
+    headerLines.push(`Referer: ${referer}`);
+  }
+
   const headersArg = headerLines.join('\r\n');
 
+  // FFmpeg arguments for optimal streaming
   const args = [
     '-hide_banner',
     '-loglevel', 'error',
     '-headers', headersArg,
     '-i', url,
-    // fast start MP4 suitable for streaming
-    '-movflags', 'frag_keyframe+empty_moov',
-    // ensure browser-compatible codecs
+    // Video codec settings for browser compatibility
     '-c:v', 'libx264',
     '-preset', 'veryfast',
+    '-crf', '23',
     '-pix_fmt', 'yuv420p',
     '-profile:v', 'baseline',
     '-level', '3.1',
+    // Audio codec settings
     '-c:a', 'aac',
     '-b:a', '128k',
+    '-ar', '44100',
+    // Output format settings
+    '-movflags', 'frag_keyframe+empty_moov+faststart',
     '-f', 'mp4',
-    'pipe:1',
+    '-y', // Overwrite output files
+    'pipe:1'
   ];
 
-  const child = spawn(ffmpegPath as string, args);
+  console.log(`FFmpeg args: ${args.join(' ')}`);
 
-  child.on('error', err => {
-    console.error('ffmpeg error', err);
-  });
+  let child: any = null;
+  let controllerClosed = false;
 
-  const headers = new Headers({
-    'Content-Type': 'video/mp4',
-    // CORS
-    'Access-Control-Allow-Origin': '*',
-    // Allow seeking; chunked stream without known length
-    'Accept-Ranges': 'bytes',
-    'Cache-Control': 'no-store',
-  });
+  try {
+    child = spawn(ffmpegPath, args, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true
+    });
 
-  const body = new ReadableStream<Uint8Array>({
-    start(controller) {
-      let closed = false;
-      const safeClose = () => {
-        if (closed) return;
-        closed = true;
-        try { controller.close(); } catch {}
-      };
-      child.stdout.on('data', chunk => {
-        try { controller.enqueue(chunk as Buffer); } catch { safeClose(); }
-      });
-      child.stdout.once('end', safeClose);
-      child.stdout.once('error', safeClose);
-      child.once('close', safeClose);
-    },
-    cancel() {
-      try { child.kill('SIGKILL'); } catch {}
-    },
-  });
+    // Handle FFmpeg process errors
+    child.on('error', (err: any) => {
+      console.error('FFmpeg spawn error:', err);
+      if (!controllerClosed) {
+        controllerClosed = true;
+      }
+    });
 
-  return new Response(body, {status: 200, headers});
+    child.on('exit', (code: number, signal: string) => {
+      console.log(`FFmpeg process exited with code ${code}, signal ${signal}`);
+      if (!controllerClosed) {
+        controllerClosed = true;
+      }
+    });
+
+    // Handle stderr for debugging
+    child.stderr.on('data', (data: Buffer) => {
+      console.log('FFmpeg stderr:', data.toString());
+    });
+
+    const headers = new Headers({
+      'Content-Type': 'video/mp4',
+      'Access-Control-Allow-Origin': '*',
+      'Accept-Ranges': 'bytes',
+      'Cache-Control': 'no-store',
+      'Connection': 'keep-alive',
+    });
+
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        child.stdout.on('data', (chunk: Buffer) => {
+          if (!controllerClosed) {
+            try {
+              controller.enqueue(chunk);
+            } catch (e) {
+              console.error('Controller enqueue error:', e);
+              if (!controllerClosed) {
+                controllerClosed = true;
+                controller.close();
+              }
+            }
+          }
+        });
+
+        child.stdout.on('end', () => {
+          if (!controllerClosed) {
+            controllerClosed = true;
+            controller.close();
+          }
+        });
+
+        child.stdout.on('error', (err: any) => {
+          console.error('FFmpeg stdout error:', err);
+          if (!controllerClosed) {
+            controllerClosed = true;
+            controller.close();
+          }
+        });
+
+        child.on('close', () => {
+          if (!controllerClosed) {
+            controllerClosed = true;
+            controller.close();
+          }
+        });
+      },
+
+      cancel() {
+        console.log('Stream cancelled, killing FFmpeg process');
+        if (child && !child.killed) {
+          try {
+            child.kill('SIGKILL');
+          } catch (e) {
+            console.error('Error killing FFmpeg process:', e);
+          }
+        }
+        if (!controllerClosed) {
+          controllerClosed = true;
+        }
+      }
+    });
+
+    return new Response(body, {status: 200, headers});
+
+  } catch (error) {
+    console.error('Error creating FFmpeg process:', error);
+    
+    // Clean up if child was created
+    if (child && !child.killed) {
+      try {
+        child.kill('SIGKILL');
+      } catch {}
+    }
+    
+    return new Response('Internal Server Error', {status: 500});
+  }
 }
 
 

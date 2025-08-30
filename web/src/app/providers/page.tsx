@@ -1,6 +1,7 @@
 "use client";
 import {useEffect, useMemo, useState} from 'react';
 import Link from 'next/link';
+import {useRouter} from 'next/navigation';
 
 type Prov = {value: string; name: string; type?: string; icon?: string};
 
@@ -9,6 +10,7 @@ export default function ProvidersPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState('');
+  const router = useRouter();
 
   useEffect(() => {
     let mounted = true;
@@ -37,6 +39,18 @@ export default function ProvidersPage() {
     return list.filter(p => `${p.name} ${p.value}`.toLowerCase().includes(t));
   }, [list, q]);
 
+  const handleProviderSelect = (providerValue: string) => {
+    try {
+      localStorage.setItem('preferredProvider', providerValue);
+      // Navigate back to home page
+      router.push('/');
+    } catch (e) {
+      console.error('Failed to save provider preference:', e);
+      // Still navigate even if localStorage fails
+      router.push('/');
+    }
+  };
+
   return (
     <main className="min-h-screen bg-black text-white px-6 py-6 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-4">
@@ -52,18 +66,15 @@ export default function ProvidersPage() {
       {error && <div className="text-sm text-red-400">{error}</div>}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
         {filtered.map(p => (
-          <Link
+          <button
             key={p.value}
-            href={`/?provider=${encodeURIComponent(p.value)}`}
-            className="block bg-zinc-900 border border-zinc-800 rounded p-3 hover:border-white/30"
-            onClick={() => {
-              try { localStorage.setItem('preferredProvider', p.value); } catch {}
-            }}
+            onClick={() => handleProviderSelect(p.value)}
+            className="block bg-zinc-900 border border-zinc-800 rounded p-3 hover:border-white/30 hover:bg-zinc-800 transition-colors text-left w-full"
           >
             <div className="text-sm font-medium">{p.name}</div>
             <div className="mt-1 text-xs text-gray-400">{p.value}</div>
             {p.type ? <div className="mt-2 text-[10px] uppercase tracking-wide bg-white/10 inline-block px-2 py-1 rounded">{p.type}</div> : null}
-          </Link>
+          </button>
         ))}
       </div>
       {!loading && filtered.length === 0 && (
