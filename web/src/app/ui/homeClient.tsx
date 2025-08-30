@@ -19,8 +19,23 @@ export default function HomeClient() {
         const list = (json?.providers || []) as {value: string; name: string}[];
         setProviders(list);
         if (list.length > 0) {
-          const hasModflix = list.find(p => p.value === 'modflix');
-          setProvider(hasModflix ? 'modflix' : list[0].value);
+          // Try to get preferred provider from localStorage
+          let preferredProvider = 'modflix';
+          try {
+            const saved = localStorage.getItem('preferredProvider');
+            if (saved && list.find(p => p.value === saved)) {
+              preferredProvider = saved;
+            } else {
+              const hasModflix = list.find(p => p.value === 'modflix');
+              preferredProvider = hasModflix ? 'modflix' : list[0].value;
+            }
+          } catch (e) {
+            console.error('localStorage error:', e);
+            // Fallback if localStorage fails
+            const hasModflix = list.find(p => p.value === 'modflix');
+            preferredProvider = hasModflix ? 'modflix' : list[0].value;
+          }
+          setProvider(preferredProvider);
         }
       } catch {}
     }
@@ -61,6 +76,16 @@ export default function HomeClient() {
     [items, provider],
   );
 
+  const handleProviderChange = (newProvider: string) => {
+    setProvider(newProvider);
+    // Save to localStorage when user changes provider
+    try {
+      localStorage.setItem('preferredProvider', newProvider);
+    } catch (e) {
+      console.error('Failed to save provider preference:', e);
+    }
+  };
+
   return (
     <section className="space-y-6">
       <div className="flex items-center gap-3">
@@ -68,7 +93,7 @@ export default function HomeClient() {
         <select
           className="bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-sm"
           value={provider}
-          onChange={e => setProvider(e.target.value)}
+          onChange={e => handleProviderChange(e.target.value)}
         >
           {providers.map(p => (
             <option key={p.value} value={p.value}>
