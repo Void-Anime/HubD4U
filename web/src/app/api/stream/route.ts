@@ -1,5 +1,5 @@
 import {NextRequest, NextResponse} from 'next/server';
-import {fetchProviderModules} from '@/server/providerLoader';
+import {fetchProviderModules, clearProviderCache} from '@/server/providerLoader';
 import {executeModule} from '@/server/providerExecutor';
 import {providerContext} from '@/server/providerContext';
 
@@ -21,6 +21,14 @@ export async function GET(req: NextRequest) {
     
     // Fetch provider modules
     console.log(`[STREAM-API] Fetching modules for provider: ${providerValue}`);
+    
+    // Force refresh modules for testing (bypass cache)
+    const forceRefresh = searchParams.get('refresh') === 'true';
+    if (forceRefresh) {
+      console.log(`[STREAM-API] Force refreshing modules (bypassing cache)`);
+      clearProviderCache(providerValue);
+    }
+    
     const modules = await fetchProviderModules(providerValue);
     console.log(`[STREAM-API] Modules fetched:`, Object.keys(modules));
     
@@ -50,19 +58,41 @@ export async function GET(req: NextRequest) {
     
     console.log(`[STREAM-API] getStream function found, calling with:`, { link, type });
     
-    // Call getStream function
+    // Call getStream function with detailed logging
     const controller = new AbortController();
-    const data = await getStream({
-      link,
-      type,
-      signal: controller.signal,
-      providerContext,
-    });
     
-    console.log(`[STREAM-API] getStream result:`, data);
-    console.log(`[STREAM-API] Returning data:`, { data: data || [] });
-    
-    return NextResponse.json({data: data || []});
+    try {
+      console.log(`[STREAM-API] About to call getStream function...`);
+      const data = await getStream({
+        link,
+        type,
+        signal: controller.signal,
+        providerContext,
+      });
+      
+      console.log(`[STREAM-API] getStream completed successfully`);
+      console.log(`[STREAM-API] getStream result type:`, typeof data);
+      console.log(`[STREAM-API] getStream result:`, data);
+      console.log(`[STREAM-API] getStream result length:`, Array.isArray(data) ? data.length : 'not array');
+      
+      if (Array.isArray(data) && data.length === 0) {
+        console.warn(`[STREAM-API] getStream returned empty array - this might indicate extraction failure`);
+      }
+      
+      console.log(`[STREAM-API] Returning data:`, { data: data || [] });
+      
+      return NextResponse.json({data: data || []});
+      
+    } catch (getStreamError: any) {
+      console.error(`[STREAM-API] getStream function threw an error:`, getStreamError);
+      console.error(`[STREAM-API] getStream error message:`, getStreamError?.message);
+      console.error(`[STREAM-API] getStream error stack:`, getStreamError?.stack);
+      
+      return NextResponse.json({
+        error: `getStream function failed: ${getStreamError?.message || 'Unknown error'}`,
+        details: process.env.NODE_ENV === 'development' ? getStreamError?.stack : undefined
+      }, {status: 500});
+    }
     
   } catch (e: any) {
     console.error(`[STREAM-API] Error:`, e);

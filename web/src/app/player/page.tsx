@@ -331,20 +331,23 @@ function PlayerPageContent() {
   const toggleFullscreen = () => { const v = videoRef.current as any; if (!v) return; if (!document.fullscreenElement) v.requestFullscreen?.(); else document.exitFullscreen?.(); };
 
   const formatTime = (t: number) => {
-    if (!isFinite(t)) return '0:00';
+    if (!isFinite(t) || t < 0) return '0:00';
     const s = Math.floor(t % 60).toString().padStart(2, '0');
     const m = Math.floor((t / 60) % 60).toString().padStart(2, '0');
     const h = Math.floor(t / 3600);
     return h > 0 ? `${h}:${m}:${s}` : `${parseInt(m)}:${s}`;
   };
 
+  // Note: suppressHydrationWarning is used on dynamic elements to prevent hydration mismatch
+  // between server-side rendering and client-side state
+
   return (
     <main className="min-h-screen p-6 text-white bg-black">
-      <div className="mx-auto max-w-5xl space-y-4">
-        {loading && <div className="text-sm text-gray-400">Loading…</div>}
-        {error && <div className="text-sm text-red-400">{error}</div>}
+      <div className="mx-auto max-w-5xl space-y-4" suppressHydrationWarning>
+        {loading && <div className="text-sm text-gray-400" suppressHydrationWarning>Loading…</div>}
+        {error && <div className="text-sm text-red-400" suppressHydrationWarning>{error}</div>}
 
-        <div id="player-container" className="relative w-full aspect-video bg-black rounded-lg overflow-hidden">
+        <div id="player-container" className="relative w-full aspect-video bg-black rounded-lg overflow-hidden" suppressHydrationWarning>
           <video
             ref={videoRef}
             controls={false}
@@ -355,12 +358,12 @@ function PlayerPageContent() {
           />
 
           {showClickToPlay && (
-            <button onClick={() => { setShowClickToPlay(false); videoRef.current?.play().catch(() => {}); }} className="absolute inset-0 m-auto h-14 w-36 bg-white text-black rounded text-lg font-semibold">
+            <button onClick={() => { setShowClickToPlay(false); videoRef.current?.play().catch(() => {}); }} className="absolute inset-0 m-auto h-14 w-36 bg-white text-black rounded text-lg font-semibold" suppressHydrationWarning>
               Click to Play
             </button>
           )}
 
-          <div className={`absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/60 via-black/20 to-transparent transition-opacity ${showControls ? 'opacity-100' : 'opacity-0'}`}>
+          <div className={`absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/60 via-black/20 to-transparent transition-opacity ${showControls ? 'opacity-100' : 'opacity-0'}`} suppressHydrationWarning>
             <input
               type="range"
               min={0}
@@ -369,19 +372,20 @@ function PlayerPageContent() {
               value={Math.min(currentTime, duration || 0)}
               onChange={(e) => seekTo(Number((e.target as HTMLInputElement).value))}
               className="w-full h-1 appearance-none accent-red-600 cursor-pointer"
+              suppressHydrationWarning
             />
 
-            <div className="flex items-center justify-between px-3 py-2">
-              <div className="flex items-center gap-2">
-                <button onClick={togglePlay} className="bg-white text-black rounded px-3 py-1 text-sm font-medium">{isPlaying ? 'Pause' : 'Play'}</button>
-                <button onClick={() => skip(-10)} className="bg-white/10 hover:bg-white/20 rounded px-3 py-1 text-sm">-10s</button>
-                <button onClick={() => skip(10)} className="bg-white/10 hover:bg-white/20 rounded px-3 py-1 text-sm">+10s</button>
-                <div className="text-xs text-gray-300 ml-2">{formatTime(currentTime)} / {formatTime(duration)}</div>
+            <div className="flex items-center justify-between px-3 py-2" suppressHydrationWarning>
+              <div className="flex items-center gap-2" suppressHydrationWarning>
+                <button onClick={togglePlay} className="bg-white text-black rounded px-3 py-1 text-sm font-medium" suppressHydrationWarning>{isPlaying ? 'Pause' : 'Play'}</button>
+                <button onClick={() => skip(-10)} className="bg-white/10 hover:bg-white/20 rounded px-2 py-1 text-sm">-10s</button>
+                <button onClick={() => skip(10)} className="bg-white/10 hover:bg-white/20 rounded px-2 py-1 text-sm">+10s</button>
+                <div className="text-xs text-gray-300 ml-2" suppressHydrationWarning>{formatTime(currentTime)} / {formatTime(duration)}</div>
               </div>
-              <div className="flex items-center gap-3">
-                <button onClick={toggleMute} className="bg-white/10 hover:bg-white/20 rounded px-2 py-1 text-sm">{muted || volume === 0 ? 'Unmute' : 'Mute'}</button>
-                <input type="range" min={0} max={1} step={0.01} value={muted ? 0 : volume} onChange={(e) => changeVolume(Number((e.target as HTMLInputElement).value))} className="w-24" />
-                <select value={playbackRate} onChange={(e) => changeRate(Number(e.target.value))} className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs">
+              <div className="flex items-center gap-3" suppressHydrationWarning>
+                <button onClick={toggleMute} className="bg-white/10 hover:bg-white/20 rounded px-2 py-1 text-sm" suppressHydrationWarning>{muted || volume === 0 ? 'Unmute' : 'Mute'}</button>
+                <input type="range" min={0} max={1} step={0.01} value={muted ? 0 : volume} onChange={(e) => changeVolume(Number((e.target as HTMLInputElement).value))} className="w-24" suppressHydrationWarning />
+                <select value={playbackRate} onChange={(e) => changeRate(Number(e.target.value))} className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs" suppressHydrationWarning>
                   {[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map(r => <option key={r} value={r}>{r}x</option>)}
                 </select>
                 <button onClick={togglePip} className="bg-white/10 hover:bg-white/20 rounded px-2 py-1 text-sm">PiP</button>
@@ -392,10 +396,10 @@ function PlayerPageContent() {
         </div>
 
         {streams.length === 0 && (
-          <div className="text-sm text-gray-400">No stream found. Try a different section/server on the Info page.</div>
+          <div className="text-sm text-gray-400" suppressHydrationWarning>No stream found. Try a different section/server on the Info page.</div>
         )}
         {streams.length > 0 && (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2" suppressHydrationWarning>
             {streams.map((s, i) => (
               <button
                 key={`${s.server}-${i}`}
@@ -409,7 +413,7 @@ function PlayerPageContent() {
           </div>
         )}
         {levels.length > 0 && (
-          <div className="flex flex-wrap gap-2 items-center text-xs">
+          <div className="flex flex-wrap gap-2 items-center text-xs" suppressHydrationWarning>
             <span className="text-gray-400">Quality:</span>
             <button
               onClick={() => setCurrentLevel('auto')}
@@ -425,7 +429,7 @@ function PlayerPageContent() {
           </div>
         )}
         {streams.length > 0 && (
-          <div className="mt-2 text-xs text-gray-400">
+          <div className="mt-2 text-xs text-gray-400" suppressHydrationWarning>
             Selected: {streams[currentIndex]?.server || streams[currentIndex]?.type} — <a className="underline" href={streams[currentIndex]?.link} target="_blank" rel="noreferrer">open source</a>
           </div>
         )}

@@ -18,6 +18,21 @@ const BASE_URLS = [
 const memoryCache = new Map<string, {modules: ProviderModules; ts: number}>();
 const CACHE_MS = 10 * 60 * 1000;
 
+// Make cache globally accessible for testing
+(globalThis as any).__providerCache = memoryCache;
+
+// Function to clear cache for testing
+export function clearProviderCache(provider?: string) {
+  if (provider) {
+    const key = normalizeProviderValue(provider);
+    memoryCache.delete(key);
+    console.log(`[PROVIDER-LOADER] Cleared cache for provider: ${key}`);
+  } else {
+    memoryCache.clear();
+    console.log(`[PROVIDER-LOADER] Cleared all provider cache`);
+  }
+}
+
 function normalizeProviderValue(providerValue: string): string {
   const v = (providerValue || '').toLowerCase().trim();
   const aliases: Record<string, string> = {

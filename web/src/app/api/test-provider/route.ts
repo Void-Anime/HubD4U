@@ -8,8 +8,12 @@ export async function GET(req: NextRequest) {
   try {
     const {searchParams} = new URL(req.url);
     const provider = searchParams.get('provider') || 'vega';
+    const testLink = searchParams.get('link') || 'https://nexdrive.pro/genxfm784776430633/';
+    const testType = searchParams.get('type') || 'movie';
     
     console.log(`[TEST-PROVIDER] Testing provider: ${provider}`);
+    console.log(`[TEST-PROVIDER] Test link: ${testLink}`);
+    console.log(`[TEST-PROVIDER] Test type: ${testType}`);
     
     // Test module fetching
     const modules = await fetchProviderModules(provider);
@@ -32,6 +36,8 @@ export async function GET(req: NextRequest) {
     // Test getStream function availability
     let getStreamAvailable = false;
     let getStreamType = 'not-found';
+    let getStreamResult = null;
+    let getStreamError = null;
     
     if (streamModuleResult) {
       const getStream = 
@@ -43,11 +49,35 @@ export async function GET(req: NextRequest) {
       if (getStream) {
         getStreamAvailable = true;
         getStreamType = typeof getStream;
+        
+        // Actually test the getStream function
+        try {
+          console.log(`[TEST-PROVIDER] Testing getStream function with real parameters...`);
+          getStreamResult = await getStream({
+            link: testLink,
+            type: testType,
+            signal: new AbortController().signal,
+            providerContext: {
+              axios: require('axios'),
+              cheerio: require('cheerio'),
+              getBaseUrl: () => 'https://example.com',
+              commonHeaders: {},
+              Crypto: {},
+              extractors: {}
+            }
+          });
+          console.log(`[TEST-PROVIDER] getStream test completed successfully`);
+        } catch (error: any) {
+          getStreamError = error.message;
+          console.error(`[TEST-PROVIDER] getStream test failed:`, error);
+        }
       }
     }
     
     const result = {
       provider,
+      testLink,
+      testType,
       modules: Object.keys(modules),
       streamModule: {
         available: !!modules.stream,
@@ -58,7 +88,9 @@ export async function GET(req: NextRequest) {
       },
       getStream: {
         available: getStreamAvailable,
-        type: getStreamType
+        type: getStreamType,
+        testResult: getStreamResult,
+        testError: getStreamError
       },
       environment: {
         nodeEnv: process.env.NODE_ENV,
