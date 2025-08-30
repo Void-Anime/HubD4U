@@ -28,13 +28,6 @@ const nextConfig: NextConfig = {
     ];
     
     return config;
-  },
-  
-  // Experimental features for better FFmpeg support
-  experimental: {
-    serverComponentsExternalPackages: [
-      '@ffmpeg-installer/ffmpeg'
-    ]
   }
 };
 
