@@ -75,29 +75,101 @@ export async function GET(req: NextRequest) {
               const testContent = await testResponse.text();
               console.log(`[TEST-PROVIDER] Direct fetch content length:`, testContent.length);
               console.log(`[TEST-PROVIDER] Direct fetch content preview:`, testContent.substring(0, 500));
+              
+              // Check if content contains expected elements
+              const hasVideoElements = testContent.includes('video') || testContent.includes('source') || testContent.includes('.mp4') || testContent.includes('.m3u8');
+              console.log(`[TEST-PROVIDER] Content contains video elements:`, hasVideoElements);
             }
           } catch (fetchError: any) {
             console.error(`[TEST-PROVIDER] Direct fetch failed:`, fetchError.message);
           }
           
-          // Now test the actual getStream function
+          // Now test the actual getStream function with more detailed context
+          console.log(`[TEST-PROVIDER] Testing getStream with enhanced context...`);
+          
+          const enhancedContext = {
+            axios: require('axios'),
+            cheerio: require('cheerio'),
+            getBaseUrl: () => 'https://example.com',
+            commonHeaders: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+              'Accept-Language': 'en-US,en;q=0.5',
+              'Accept-Encoding': 'gzip, deflate',
+              'Connection': 'keep-alive',
+              'Upgrade-Insecure-Requests': '1',
+            },
+            Crypto: {},
+            extractors: {}
+          };
+          
+          console.log(`[TEST-PROVIDER] Enhanced context created with:`, Object.keys(enhancedContext));
+          
+          // Test with the original URL
+          console.log(`[TEST-PROVIDER] Testing with original URL: ${testLink}`);
+          
+          // Create a proxy to capture what the provider is doing
+          const originalAxios = enhancedContext.axios;
+          const axiosCalls: any[] = [];
+          
+          enhancedContext.axios = new Proxy(originalAxios, {
+            get(target, prop) {
+              if (prop === 'get' || prop === 'post') {
+                return function(...args: any[]) {
+                  console.log(`[TEST-PROVIDER] Provider making ${prop} request to:`, args[0]);
+                  axiosCalls.push({ method: prop, url: args[0], args });
+                  return target[prop].apply(target, args);
+                };
+              }
+              return target[prop];
+            }
+          });
+          
           getStreamResult = await getStream({
             link: testLink,
             type: testType,
             signal: new AbortController().signal,
-            providerContext: {
-              axios: require('axios'),
-              cheerio: require('cheerio'),
-              getBaseUrl: () => 'https://example.com',
-              commonHeaders: {},
-              Crypto: {},
-              extractors: {}
-            }
+            providerContext: enhancedContext
           });
+          
           console.log(`[TEST-PROVIDER] getStream test completed successfully`);
+          console.log(`[TEST-PROVIDER] Provider made ${axiosCalls.length} HTTP requests:`, axiosCalls.map(call => ({ method: call.method, url: call.url })));
+          
+          // If the first test returns empty, try with a different URL format
+          if (Array.isArray(getStreamResult) && getStreamResult.length === 0) {
+            console.log(`[TEST-PROVIDER] First test returned empty, trying alternative URL format...`);
+            
+            // Try different URL variations
+            const alternativeUrls = [
+              testLink.replace('https://nexdrive.pro/', 'https://nexdrive.pro/watch/'),
+              testLink.replace('https://nexdrive.pro/', 'https://nexdrive.pro/embed/'),
+              testLink.replace('https://nexdrive.pro/', 'https://nexdrive.pro/stream/'),
+            ];
+            
+            for (const altUrl of alternativeUrls) {
+              try {
+                console.log(`[TEST-PROVIDER] Trying alternative URL: ${altUrl}`);
+                const altResult = await getStream({
+                  link: altUrl,
+                  type: testType,
+                  signal: new AbortController().signal,
+                  providerContext: enhancedContext
+                });
+                
+                if (Array.isArray(altResult) && altResult.length > 0) {
+                  console.log(`[TEST-PROVIDER] Alternative URL worked:`, altUrl);
+                  getStreamResult = altResult;
+                  break;
+                }
+              } catch (altError: any) {
+                console.log(`[TEST-PROVIDER] Alternative URL failed:`, altUrl, altError.message);
+              }
+            }
+          }
         } catch (error: any) {
           getStreamError = error.message;
           console.error(`[TEST-PROVIDER] getStream test failed:`, error);
+          console.error(`[TEST-PROVIDER] Error stack:`, error.stack);
         }
       }
     }
