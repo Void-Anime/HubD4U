@@ -1,9 +1,9 @@
 "use client";
-import {useEffect, useMemo, useState} from 'react';
+import {useEffect, useMemo, useState, Suspense} from 'react';
 import {useSearchParams} from 'next/navigation';
 import StreamChooser from './StreamChooser';
 
-export default function InfoPage() {
+function InfoPageContent() {
   const searchParams = useSearchParams();
   const link = searchParams.get('link') || '';
   const providerParam = searchParams.get('provider') || '';
@@ -199,153 +199,131 @@ export default function InfoPage() {
                 </div>
               </div>
 
-              {Array.isArray(data.cast) && data.cast.length > 0 && (
-                <div className="bg-zinc-900/50 rounded-2xl p-6">
-                  <h3 className="text-xl font-semibold border-b border-zinc-700 pb-2 mb-4">Cast</h3>
-                  <div className="space-y-2 text-sm">
-                    {data.cast.slice(0, 12).map((actor: string, idx: number) => (
-                      <div key={idx} className="text-gray-300 hover:text-white transition-colors">
-                        {actor}
-                      </div>
-                    ))}
-                    {data.cast.length > 12 && (
-                      <div className="text-gray-500 text-xs pt-2">+{data.cast.length - 12} more</div>
-                    )}
-                  </div>
+              <div className="bg-zinc-900/50 rounded-2xl p-6 space-y-4">
+                <h3 className="text-xl font-semibold border-b border-zinc-700 pb-2">Cast & Crew</h3>
+                <div className="space-y-3 text-sm">
+                  {data.cast && <div className="flex justify-between"><span className="text-gray-400">Cast:</span> <span className="text-white text-right max-w-xs">{Array.isArray(data.cast) ? data.cast.slice(0, 5).join(', ') : data.cast}</span></div>}
+                  {data.director && <div className="flex justify-between"><span className="text-gray-400">Director:</span> <span className="text-white">{Array.isArray(data.director) ? data.director.join(', ') : data.director}</span></div>}
+                  {data.writer && <div className="flex justify-between"><span className="text-gray-400">Writer:</span> <span className="text-white">{Array.isArray(data.writer) ? data.writer.join(', ') : data.writer}</span></div>}
+                  {data.producer && <div className="flex justify-between"><span className="text-gray-400">Producer:</span> <span className="text-white">{Array.isArray(data.producer) ? data.producer.join(', ') : data.producer}</span></div>}
                 </div>
-              )}
+              </div>
 
-              {Array.isArray(data.crew) && data.crew.length > 0 && (
-                <div className="bg-zinc-900/50 rounded-2xl p-6">
-                  <h3 className="text-xl font-semibold border-b border-zinc-700 pb-2 mb-4">Crew</h3>
-                  <div className="space-y-2 text-sm">
-                    {data.crew.slice(0, 8).map((member: string, idx: number) => (
-                      <div key={idx} className="text-gray-300 hover:text-white transition-colors">
-                        {member}
-                      </div>
-                    ))}
-                  </div>
+              <div className="bg-zinc-900/50 rounded-2xl p-6 space-y-4">
+                <h3 className="text-xl font-semibold border-b border-zinc-700 pb-2">Production</h3>
+                <div className="space-y-3 text-sm">
+                  {data.production && <div className="flex justify-between"><span className="text-gray-400">Production:</span> <span className="text-white">{Array.isArray(data.production) ? data.production.join(', ') : data.production}</span></div>}
+                  {data.awards && <div className="flex justify-between"><span className="text-gray-400">Awards:</span> <span className="text-white">{Array.isArray(data.awards) ? data.awards.join(', ') : data.awards}</span></div>}
                 </div>
-              )}
-
-              {(data.director || data.writer || data.producer || data.cinematographer || data.editor) && (
-                <div className="bg-zinc-900/50 rounded-2xl p-6">
-                  <h3 className="text-xl font-semibold border-b border-zinc-700 pb-2 mb-4">Production</h3>
-                  <div className="space-y-3 text-sm">
-                    {data.director && <div><span className="text-gray-400">Director:</span> <span className="text-white">{Array.isArray(data.director) ? data.director.join(', ') : data.director}</span></div>}
-                    {data.writer && <div><span className="text-gray-400">Writer:</span> <span className="text-white">{Array.isArray(data.writer) ? data.writer.join(', ') : data.writer}</span></div>}
-                    {data.producer && <div><span className="text-gray-400">Producer:</span> <span className="text-white">{Array.isArray(data.producer) ? data.producer.join(', ') : data.producer}</span></div>}
-                    {data.cinematographer && <div><span className="text-gray-400">Cinematographer:</span> <span className="text-white">{data.cinematographer}</span></div>}
-                    {data.editor && <div><span className="text-gray-400">Editor:</span> <span className="text-white">{data.editor}</span></div>}
-                  </div>
-                </div>
-              )}
-
-              {(data.awards || data.nominations) && (
-                <div className="bg-zinc-900/50 rounded-2xl p-6">
-                  <h3 className="text-xl font-semibold border-b border-zinc-700 pb-2 mb-4">Awards</h3>
-                  <div className="space-y-3 text-sm">
-                    {data.awards && <div><span className="text-gray-400">Awards:</span> <span className="text-white">{data.awards}</span></div>}
-                    {data.nominations && <div><span className="text-gray-400">Nominations:</span> <span className="text-white">{data.nominations}</span></div>}
-                  </div>
-                </div>
-              )}
+              </div>
             </div>
 
-            <div className="space-y-8">
-              <div className="bg-zinc-900/50 rounded-2xl p-6">
-                <h3 className="text-xl font-semibold border-b border-zinc-700 pb-2 mb-4">Synopsis</h3>
-                <p className="text-gray-200 leading-relaxed text-base">{data.synopsis}</p>
+            <div className="space-y-6">
+              <div className="bg-zinc-900/50 rounded-2xl p-6 space-y-4">
+                <h3 className="text-xl font-semibold border-b border-zinc-700 pb-2">Plot Summary</h3>
+                <p className="text-gray-200 leading-relaxed">{data.synopsis || 'No plot summary available.'}</p>
               </div>
 
-              {data.plot && data.plot !== data.synopsis && (
-                <div className="bg-zinc-900/50 rounded-2xl p-6">
-                  <h3 className="text-xl font-semibold border-b border-zinc-700 pb-2 mb-4">Plot Summary</h3>
-                  <p className="text-gray-200 leading-relaxed text-base">{data.plot}</p>
-                </div>
-              )}
+              <div id="downloads" className="bg-zinc-900/50 rounded-2xl p-6 space-y-4">
+                <h3 className="text-xl font-semibold border-b border-zinc-700 pb-2">Download Links</h3>
+                {Array.isArray(data.linkList) && data.linkList.length > 0 ? (
+                  <div className="space-y-6">
+                    {data.linkList.map((l: any, idx: number) => (
+                      <div key={`${l.title || 'section'}-${idx}`} className="border border-zinc-700 rounded-lg p-4">
+                        <h4 className="text-lg font-semibold mb-3 text-blue-400">{l.title || 'Download Section'}</h4>
+                        
+                        {Array.isArray(l.directLinks) && l.directLinks.length > 0 && (
+                          <div className="mb-4">
+                            <h5 className="text-sm font-medium text-gray-300 mb-2">Direct Links:</h5>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                              {l.directLinks.map((d: any, i: number) => (
+                                <a
+                                  key={`${d.title || 'link'}-${i}`}
+                                  href={`/player?provider=${provider}&type=${d.type || 'movie'}&link=${encodeURIComponent(d.link)}`}
+                                  className="block bg-zinc-800 hover:bg-zinc-700 rounded-lg p-3 transition-colors"
+                                >
+                                  <div className="text-sm font-medium text-white">{d.title || 'Play'}</div>
+                                  <div className="text-xs text-gray-400 mt-1">
+                                    {d.quality && <span className="mr-2">{d.quality}</span>}
+                                    {d.size && <span className="mr-2">{d.size}</span>}
+                                    {d.audio && <span>{d.audio}</span>}
+                                  </div>
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
-              <div id="downloads" className="bg-zinc-900/50 rounded-2xl p-6">
-                <h3 className="text-xl font-semibold border-b border-zinc-700 pb-2 mb-6">Watch / Download Options</h3>
-                <div className="space-y-6">
-                  {(data.linkList || []).map((l: any, idx: number) => (
-                    <div key={`${l.title || 'section'}-${idx}`} className="border border-zinc-700 rounded-xl p-4">
-                      <h4 className="text-lg font-medium text-white mb-4">{l.title}</h4>
-
-                      {/* Episodes listing if available */}
-                      {l.episodesLink && (episodesMap[l.title] || []).length > 0 && (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 mb-4">
-                          {(episodesMap[l.title] || []).map((ep, ei) => (
-                            <a
-                              key={`${ep.link}-${ei}`}
-                              href={`/player?provider=${provider}&type=series&link=${encodeURIComponent(ep.link)}`}
-                              className="text-xs bg-white text-black rounded px-2 py-1 text-center"
-                            >
-                              {ep.title || `Episode ${ei + 1}`}
-                            </a>
-                          ))}
-                        </div>
-                      )}
-
-                      {(l.directLinks && l.directLinks.length > 0) ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                          {l.directLinks.map((d: any, i: number) => {
-                            const quality = extractQuality(d.title);
-                            const size = extractSize(d.title);
-                            const audio = extractAudio(d.title);
-                            return (
-                              <div key={`${d.title || 'link'}-${i}`} className="bg-zinc-800 rounded-lg p-4 hover:bg-zinc-700 transition-colors">
-                                <div className="flex items-center justify-between mb-2">
-                                  <span className="text-sm font-medium text-white">{d.title}</span>
+                        {l.episodesLink && (
+                          <div>
+                            <h5 className="text-sm font-medium text-gray-300 mb-2">Episodes:</h5>
+                            {episodesMap[l.title || l.episodesLink] ? (
+                              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                                {episodesMap[l.title || l.episodesLink].map((episode, i) => (
                                   <a
-                                    href={`/player?provider=${provider}&type=${d.type || 'movie'}&link=${encodeURIComponent(d.link)}`}
-                                    className="bg-red-600 hover:bg-red-700 text-white text-xs px-3 py-1 rounded-full transition-colors"
+                                    key={`${episode.title}-${i}`}
+                                    href={`/player?provider=${provider}&type=series&link=${encodeURIComponent(episode.link)}`}
+                                    className="block bg-zinc-800 hover:bg-zinc-700 rounded-lg p-2 text-center transition-colors"
                                   >
-                                    Play
+                                    <div className="text-xs font-medium text-white">{episode.title}</div>
+                                  </a>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="text-sm text-gray-400">Loading episodes...</div>
+                            )}
+                          </div>
+                        )}
+
+                        {Array.isArray(l.links) && l.links.length > 0 && (
+                          <div>
+                            <h5 className="text-sm font-medium text-gray-300 mb-2">Download Links:</h5>
+                            <div className="space-y-2">
+                              {l.links.map((link: any, i: number) => (
+                                <div key={`${link.title || 'link'}-${i}`} className="flex items-center justify-between bg-zinc-800 rounded-lg p-3">
+                                  <div className="flex-1">
+                                    <div className="text-sm font-medium text-white">{link.title}</div>
+                                    <div className="text-xs text-gray-400 mt-1 flex flex-wrap gap-2">
+                                      {extractQuality(link.title) && <span className="bg-blue-600/20 px-2 py-1 rounded">{extractQuality(link.title)}</span>}
+                                      {extractSize(link.title) && <span className="bg-green-600/20 px-2 py-1 rounded">{extractSize(link.title)}</span>}
+                                      {extractAudio(link.title) && <span className="bg-purple-600/20 px-2 py-1 rounded">{extractAudio(link.title)}</span>}
+                                    </div>
+                                  </div>
+                                  <a
+                                    href={link.link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="bg-red-600 hover:bg-red-700 text-white text-sm px-4 py-2 rounded-lg transition-colors"
+                                  >
+                                    Download
                                   </a>
                                 </div>
-                                {quality && <div className="text-xs text-gray-400 mb-1">Quality: {quality}</div>}
-                                {size && <div className="text-xs text-gray-400 mb-1">Size: {size}</div>}
-                                {audio && <div className="text-xs text-gray-400">Audio: {audio}</div>}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <StreamChooser provider={provider} infoLink={link} title={l.title} />
-                      )}
-                    </div>
-                  ))}
-                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-400">No download links available.</div>
+                )}
               </div>
 
-              {data.additionalInfo && (
-                <div className="bg-zinc-900/50 rounded-2xl p-6">
-                  <h3 className="text-xl font-semibold border-b border-zinc-700 pb-2 mb-4">Additional Information</h3>
-                  <div className="text-gray-200 text-sm leading-relaxed">
-                    {data.additionalInfo}
-                  </div>
-                </div>
-              )}
-
-              {(data.aspectRatio || data.color || data.soundMix || data.camera || data.laboratory || data.filmLength) && (
-                <div className="bg-zinc-900/50 rounded-2xl p-6">
-                  <h3 className="text-xl font-semibold border-b border-zinc-700 pb-2 mb-4">Technical Details</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                    {data.aspectRatio && <div><span className="text-gray-400">Aspect Ratio:</span> <span className="text-white">{data.aspectRatio}</span></div>}
-                    {data.color && <div><span className="text-gray-400">Color:</span> <span className="text-white">{data.color}</span></div>}
-                    {data.soundMix && <div><span className="text-gray-400">Sound Mix:</span> <span className="text-white">{data.soundMix}</span></div>}
-                    {data.camera && <div><span className="text-gray-400">Camera:</span> <span className="text-white">{data.camera}</span></div>}
-                    {data.laboratory && <div><span className="text-gray-400">Laboratory:</span> <span className="text-white">{data.laboratory}</span></div>}
-                    {data.filmLength && <div><span className="text-gray-400">Film Length:</span> <span className="text-white">{data.filmLength}</span></div>}
-                  </div>
-                </div>
-              )}
+              <StreamChooser provider={provider} infoLink={link} title={data?.title} />
             </div>
           </div>
         )}
       </div>
     </main>
+  );
+}
+
+export default function InfoPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen text-white bg-black flex items-center justify-center"><div className="text-lg text-gray-400">Loading...</div></div>}>
+      <InfoPageContent />
+    </Suspense>
   );
 }
 
